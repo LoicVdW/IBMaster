@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IBMaster</title>
+<meta name="description" content="IBMaster · the study app of the banaba IBM class at HOGENT">
+<meta name="theme-color" content="#0E9384">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3 3 9.5 16 16l13-6.5z' fill='%230E9384'/%3E%3Cpath d='M8 13v6.5c0 2.5 3.6 4.5 8 4.5s8-2 8-4.5V13l-8 4z' fill='%23C98F00'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>html{-webkit-text-size-adjust:100%} body{margin:0} [hidden]{display:none!important} img{max-width:100%} :root{padding-top:env(safe-area-inset-top,0px)}</style>
+</head>
+<body>
+
+
+<header class="bar"><div class="bar-in">
+  <button class="logo" data-go="home" aria-label="Go to dashboard">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 3 9.5 16 16l13-6.5L16 3Z" fill="currentColor"/><path d="M8 13v6.5c0 2.5 3.6 4.5 8 4.5s8-2 8-4.5V13l-8 4-8-4Z" fill="currentColor" opacity=".55"/><path d="M27.5 10.5v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    <span class="brand">IB<span>Master</span></span>
+  </button>
+  <div class="stats">
+    <div class="stat flame" id="streak-wrap" title="Study streak: days in a row with a finished practice"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2s5 4.6 5 10a5 5 0 0 1-10 0c0-2 1-3.6 1-3.6S9 10 10.5 10C10.5 6 12 2 12 2Z"/></svg><span class="num" id="streak">0</span></div>
+    <div class="stat ice" title="Streak freezes: protect your streak on a missed day. You earn one every 7 days, max 2."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span class="num" id="freezes">0</span></div>
+    <div class="stat xp" title="XP: earned by answering correctly. Tap to see the leaderboard" data-jump role="button" tabindex="0" style="cursor:pointer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span class="num" id="xp">0</span></div>
+    <div class="stat" id="goal-mini" title="Daily goal"></div>
+    <button class="btn primary sm add" data-add="menu" id="add-top" hidden>Add</button>
+    <button class="avatar" data-profile id="avatar" hidden aria-label="Your profile">?</button>
+  </div>
+</div></header>
+<nav class="tabnav" id="tabnav" aria-label="Sections"></nav>
+<div class="notice" id="notice" hidden><div id="notice-t"></div></div>
+<main id="main"><div class="panel"><p class="empty">Loading your planning…</p></div></main>
+<div id="modal-root"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
