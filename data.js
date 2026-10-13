@@ -2,7 +2,7 @@
 // IBMaster · data layer on Supabase (login, tables, files, live updates)
 // =====================================================================
 const sb = window.supabase.createClient(window.IBM_CONFIG.url, window.IBM_CONFIG.key, {auth:{persistSession:true,autoRefreshToken:true}});
-const TABLE = {deadlines:"deadlines",lessons:"lessons",summaries:"summaries",cards:"cards",slidetext:"slide_text",classes:"classes"};
+const TABLE = {personal:"personal_tasks",deadlines:"deadlines",lessons:"lessons",summaries:"summaries",cards:"cards",slidetext:"slide_text",classes:"classes"};
 const KEYCOL = {slide_text:"lesson_id"};
 const snake = k => k.replace(/[A-Z]/g, m => "_" + m.toLowerCase());
 const camel = k => k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -50,7 +50,7 @@ const Files = {
     await q(sb.storage.from("files").upload(path, file, {contentType: opts && opts.type || file.type || "application/octet-stream", upsert: false}));
     return {id: path, url: "", contentType: opts && opts.type || file.type}; },
   async delete(path){ try { await sb.storage.from("files").remove([path]); } catch (e) {} },
-  async open(path){ const {data, error} = await sb.storage.from("files").createSignedUrl(path, 3600); if (error || !data) { toast("Couldn't open the file"); return; } window.open(data.signedUrl, "_blank", "noopener"); }
+  async open(path){ const isPptx=/\.pptx$/i.test(path); const {data, error} = await sb.storage.from("files").createSignedUrl(path, 3600, isPptx ? {download: path.split("/").pop().replace(/^\d+-/, "")} : undefined); if (error || !data) { toast("Couldn't open the file"); return; } window.open(data.signedUrl, "_blank", "noopener"); }
 };
 // ---------- loading + live updates
 const LOADERS = {
@@ -60,10 +60,11 @@ const LOADERS = {
   cards:     async () => (await q(sb.from("cards").select("*").limit(10000))).map(r => fromRow("cards", r)),
   classes:   async () => (await q(sb.from("classes").select("*").order("starts_at").limit(5000))).map(classFromRow),
   players:   async () => (await q(sb.from("profiles").select("id,name,week_start,week_xp,xp,streak,last_study,hide_board"))).map(r => ({id: r.id, name: r.name, weekStart: r.week_start, weekXp: r.week_xp || 0, xp: r.xp || 0, streak: r.streak || 0, last: r.last_study || "", hidden: !!r.hide_board})),
-  notes:     async () => (await q(sb.from("slide_notes").select("lesson_id,user_id,slides,updated_at"))).map(r => ({lessonId: r.lesson_id, userId: r.user_id, slides: r.slides || [], updatedAt: r.updated_at})),
+  notes:     async () => (await q(sb.from("slide_notes").select("*"))).map(r => ({lessonId: r.lesson_id, userId: r.user_id, slides: r.slides || [], filePath: r.file_path || "", fileName: r.file_name || "", updatedAt: r.updated_at})),
+  personal:  async () => (await q(sb.from("personal_tasks").select("*").order("date"))).map(r => ({id: r.id, date: String(r.date).slice(0, 10), title: r.title, course: r.course || "me", kind: "personal", personal: true, createdAt: r.created_at})),
   master:    async () => (await q(sb.from("master_notes").select("*"))).map(r => ({lessonId: r.lesson_id, slide: r.slide, text: r.text}))
 };
-const TABLE_TO_KEY = {deadlines:"deadlines",lessons:"lessons",summaries:"summaries",cards:"cards",classes:"classes",profiles:"players",slide_notes:"notes",master_notes:"master"};
+const TABLE_TO_KEY = {deadlines:"deadlines",lessons:"lessons",summaries:"summaries",cards:"cards",classes:"classes",profiles:"players",slide_notes:"notes",master_notes:"master",personal_tasks:"personal"};
 const pad2 = n => String(n).padStart(2, "0");
 function localStamp(iso){ const d = new Date(iso); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 function classFromRow(r){ return {id: r.id, start: localStamp(r.starts_at), end: localStamp(r.ends_at), allDay: r.all_day, title: r.title, kind: r.kind || "", note: r.note || "", room: r.room || "", teacher: r.teacher || "", course: r.course || "", importedAt: r.imported_at}; }

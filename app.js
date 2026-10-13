@@ -15,11 +15,12 @@ const COURSES = {
   ibp:{name:"Integrated Business Projects", short:"IBP", who:"Marjolein Feys", group:"admin"},
   int:{name:"Internship", short:"ST", who:"Elsie Vestraets", group:"admin"},
   gen:{name:"Trips & other", short:"✈", who:"", group:"admin"},
+  me:{name:"Personal",short:"Me",who:"",group:"hidden"},
   fr:{name:"French (Basic + Advanced)", short:"FR", who:"", group:"hidden"}
 };
 const GROUPS = {box:"Box of Knowledge", prog:"Programs", lang:"Languages", admin:"Agenda only"};
 const NOLEARN = ["is","ibp","int","gen","fr"];
-const KIND = {deadline:"Deadline",test:"Test",session:"Session",trip:"Trip"};
+const KIND = {deadline:"Deadline",test:"Test",session:"Session",trip:"Trip",personal:"Only you"};
 const SUMKIND = {student:"Student notes", ai:"AI summary", merged:"Master summary"};
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_L = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -28,7 +29,7 @@ const ICON_TRASH = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14
 const ICON_FILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v5h5" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
 
 const S = {deadlines:[],lessons:[],summaries:[],cards:[],classes:[],loaded:{},db:null,assets:null,user:null,sample:null,uid:null,canWrite:null,names:{},
-  me:{done:[],xp:0,streak:0,last:"",freezes:0,third:"es",fr:"advanced",goal:30,day:{date:"",xp:0},week:{start:"",xp:0},boxes:{},name:"",hideBoard:false},players:[],roster:[],notes:[],master:[],isAdmin:false,meLoaded:false};
+  me:{done:[],xp:0,streak:0,last:"",freezes:0,third:"es",fr:"advanced",goal:30,day:{date:"",xp:0},week:{start:"",xp:0},boxes:{},name:"",hideBoard:false},players:[],roster:[],notes:[],master:[],personal:[],isAdmin:false,meLoaded:false};
 let view={name:"home"}, session=null;
 
 // ---------- helpers
@@ -42,7 +43,7 @@ const cc=c=>`--cc:var(--c-${COURSES[c]?(COURSES[c].color||c):"gen"})`;
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 function visible(c){ if(c==="es"||c==="de") return c===S.me.third; if(c==="frb") return S.me.fr==="basic"; if(c==="fra") return S.me.fr==="advanced"; return true; }
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
-const myEvents=()=>S.deadlines.filter(e=>e.date&&visible(e.course));
+const myEvents=()=>[...S.deadlines,...(S.personal||[])].filter(e=>e.date&&visible(e.course));
 const eventsFor=c=>myEvents().filter(e=>e.course===c||((c==="frb"||c==="fra")&&e.course==="fr"));
 const canAdd=()=>!!S.uid;
 const learnCourses=()=>Object.keys(COURSES).filter(c=>!NOLEARN.includes(c)&&visible(c));
@@ -117,12 +118,12 @@ function render(){
 function refreshNames(){}
 
 function evRow(e,showCourse=true){
-  const d=pd(e.date),due=dueLabel(e.date),isDone=(S.me.done||[]).includes(e.id),checkable=e.kind==="deadline"||e.kind==="test";
+  const d=pd(e.date),due=dueLabel(e.date),isDone=(S.me.done||[]).includes(e.id),checkable=e.kind==="deadline"||e.kind==="test"||e.kind==="personal";
   return `<div class="ev ${isDone?"done":""}" style="${cc(e.course)}">
     <div class="datebox"><div class="d num">${d.getDate()}</div><div class="m">${MONTHS[d.getMonth()]}</div></div>
     <div style="min-width:0"><div class="ev-t">${esc(e.title)}</div>
-      <div class="ev-s">${showCourse?`<span class="chip">${esc(COURSES[e.course]?.name||"Other")}</span>`:""}<span class="kind ${esc(e.kind)}">${KIND[e.kind]||"Item"}</span><span class="due ${due.soon&&!isDone?"soon":""}">${due.t}</span></div></div>
-    <div class="ev-act">${delBtn("deadlines",e.id,e.title)}${checkable?`<button class="check" data-done="${e.id}" aria-label="${isDone?"Mark as not done":"Mark as done"}: ${esc(e.title)}"><svg viewBox="0 0 24 24"><path d="M5 12.5 10 17l9-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`:""}</div></div>`;
+      <div class="ev-s">${showCourse&&e.course!=="me"?`<span class="chip">${esc(COURSES[e.course]?.name||"Other")}</span>`:""}<span class="kind ${esc(e.kind)}">${e.kind==="personal"?"🔒 ":""}${KIND[e.kind]||"Item"}</span><span class="due ${due.soon&&!isDone?"soon":""}">${due.t}</span></div></div>
+    <div class="ev-act">${delBtn(e.personal?"personal":"deadlines",e.id,e.title)}${checkable?`<button class="check" data-done="${e.id}" aria-label="${isDone?"Mark as not done":"Mark as done"}: ${esc(e.title)}"><svg viewBox="0 0 24 24"><path d="M5 12.5 10 17l9-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`:""}</div></div>`;
 }
 
 let calMonth=new Date(TODAY.getFullYear(),TODAY.getMonth(),1), selDay=T, showAll=false, agendaMode="deadlines";
@@ -265,7 +266,7 @@ function todayHTML(inLearn){
 }
 
 function courseCard(c){
-  const C=COURSES[c],done=new Set(S.me.done||[]),evs=eventsFor(c).filter(e=>e.kind==="deadline"||e.kind==="test");
+  const C=COURSES[c],done=new Set(S.me.done||[]),evs=eventsFor(c).filter(e=>e.kind==="deadline"||e.kind==="test"||e.kind==="personal");
   const nxt=evs.filter(e=>daysUntil(e.date)>=0&&!done.has(e.id)).sort((a,b)=>a.date.localeCompare(b.date))[0];
   const learn=!NOLEARN.includes(c), ck=S.cards.filter(k=>k.course===c), nl=lessonsOf(c).length;
   const pct=learn?mastery(ck):(evs.length?Math.round(evs.filter(e=>done.has(e.id)).length/evs.length*100):0);
@@ -292,7 +293,7 @@ const pageHead=(title,sub)=>`<div class="page-h"><h1>${title}</h1>${sub?`<p clas
 function upNextHTML(limit){
   const up=myEvents().filter(e=>daysUntil(e.date)>=0&&e.kind!=="session").sort((a,b)=>a.date.localeCompare(b.date)), list=(showAll||!limit)?up:up.slice(0,limit);
   const emptyUp=!S.loaded.deadlines?"Loading your planning…":(S.deadlines.length?"All clear. Nothing coming up.":"No deadlines yet. Add the first one.");
-  return `<section class="panel"><div class="panel-h"><h2>Up next</h2>${canAdd()?`<button class="btn sm add" data-add="deadline">Add deadline</button>`:""}</div>
+  return `<section class="panel"><div class="panel-h"><h2>Up next</h2>${canAdd()?`<button class="btn sm add" data-add="deadline">Add</button>`:""}</div>
     <div class="next-list">${list.map(e=>evRow(e)).join("")||`<div class="empty">${emptyUp}</div>`}</div>
     ${limit&&up.length>limit?`<button class="btn" style="margin-top:10px" data-tabgo="agenda">See all ${up.length} in Agenda</button>`:""}</section>`;
 }
@@ -326,9 +327,10 @@ function learnTabHTML(){
 function uploadTabHTML(){
   if(!canAdd()) return `${pageHead("Upload","")}<div class="panel"><p class="empty">Uploading needs access to this dashboard. Ask Loïc to invite you.</p></div>`;
   const tiles=[
-    ["lesson","Slides","Upload the PowerPoint or PDF from class. AI turns it into flashcards.",'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2"/>'],
+    ["lesson","PowerPoint + notes","Upload the class PowerPoint with your notes. Flashcards and optimal notes are made automatically.",'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2"/>'],
     ["summary","Summary or notes","Your notes for a lesson. Paste text or upload a PDF.",'<path d="M6 2h9l5 5v15H6z"/><path d="M9 12h8M9 16h8M9 8h4" stroke="var(--surface)" stroke-width="2"/>'],
     ["card","Flashcards","A term and its meaning, to learn and quiz.",'<rect x="3" y="6" width="14" height="12" rx="2"/><rect x="7" y="3" width="14" height="12" rx="2" opacity=".55"/>'],
+    ["personal","Personal task","🔒 Only you see it. It shows in your own agenda.",'<rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" fill="none" stroke="currentColor" stroke-width="2.4"/>'],
     ["deadline","Deadline","Assignment, test, trip or session.",'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2" stroke="var(--surface)" stroke-width="2" fill="none"/>'],
     ["import","Class schedule","Import the .ics file from TimeEdit.",'<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16" stroke="var(--surface)" stroke-width="2"/>']
   ].map(([k,t,d,ic])=>`<button class="up-tile" ${k==="import"?"data-import":`data-add="${k}"`}><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ic}</svg><b>${t}</b><span>${d}</span></button>`).join("");
@@ -384,7 +386,7 @@ function openProfile(first){
     <label class="row hint"><input type="checkbox" id="p-hide" ${S.me.hideBoard?"checked":""} style="width:auto"> Hide my score on the class leaderboard</label>`,
   async f=>{const pk=f.querySelector("#p-pick"); const name=(pk&&pk.value&&pk.value!=="__other")?pk.value:(f.querySelector("#p-name")?.value||"").trim(); if(!name) fail(pk?"Choose your name.":"Pick a nickname.");
     if(S.players.some(p=>p.id!==S.uid&&p.name===name)) fail("Someone already picked that name. Choose another, or ask Loïc.");
-    saveMe({name,fr:f.querySelector("#p-fr").value,third:f.querySelector("#p-third").value,hideBoard:f.querySelector("#p-hide").checked}); syncPlayer(); return "Profile saved";},"Save");
+    saveMe({name,fr:f.querySelector("#p-fr").value,third:f.querySelector("#p-third").value,hideBoard:f.querySelector("#p-hide").checked}); syncPlayer(); return pw?"Profile and new password saved":"Profile saved";},"Save");
 }
 function courseHTML(c){
   const C=COURSES[c],evs=eventsFor(c).sort((a,b)=>a.date.localeCompare(b.date)),learn=!NOLEARN.includes(c),ls=lessonsOf(c),offs=[0,46,70,46,0,-46,-70,-46];
@@ -446,11 +448,11 @@ function lessonHTML(){
       <div class="col">
         <section class="panel" style="${cc(c)}"><div class="panel-h"><h2>Learn</h2>${canAdd()?`<button class="btn sm add" data-add="card" data-lesson="${l.id}">Add flashcard</button>`:""}</div>
           <div class="learn-btns"><button class="btn primary" data-learn="lesson" ${cards.length?"":"disabled"}>Learn</button><button class="btn" data-learn="flash" ${cards.length?"":"disabled"}>Flashcards</button></div>
-          <p class="hint" style="margin:8px 0 0">${cards.length?`${cards.length} cards · ${mastery(cards)}% mastered. Learn mixes multiple choice and typing, and repeats what you miss.`:"No cards yet. Upload the slides and let AI make them, use “Make flashcards” on a summary, or add your own."}</p>
+          <p class="hint" style="margin:8px 0 0">${cards.length?`${cards.length} cards · ${mastery(cards)}% mastered. Learn mixes multiple choice and typing, and repeats what you miss.`:"No cards yet. Upload the PowerPoint: the flashcards are made automatically."}</p>
           ${cards.length?`<div class="cards-list">${cards.map(k=>`<div class="card-row"><span class="lvl l${box(k.id)}" title="Level ${box(k.id)} of 5"></span><b>${esc(k.term)}</b><span>${esc(k.def)}${k.easy?`<span class="hint" style="display:block">In plain words: ${esc(k.easy)}</span>`:""}${k.example?`<span class="hint" style="display:block">Example: ${esc(k.example)}</span>`:""}</span>${delBtn("cards",k.id,k.term)}</div>`).join("")}</div>`:""}</section>
         <section class="panel"><div class="panel-h"><h2>Slides</h2>${canAdd()?`<button class="btn sm add" data-add="slides" data-lesson="${l.id}">${slides||l.hasText?"Replace":"Upload slides"}</button>`:""}</div>
-          ${slides?`<button class="file-link" data-open="${esc(slides.id)}">${ICON_FILE}<span>${esc(slides.name||"Slides")}</span></button>`:l.pptxName?`<p class="hint" style="margin:0">PowerPoint “${esc(l.pptxName)}” was read. Upload the PDF version to view the slides here.</p>`:`<p class="empty">No slides yet. Upload the PowerPoint or PDF.</p>`}
-          ${l.hasText?`<div class="row" style="margin-top:10px"><button class="btn sm" data-slidetext="${l.id}">Slide text${l.slideCount?` (${l.slideCount})`:""}</button>${canAdd()?`<button class="btn sm ai" data-genslides="${l.id}">Make flashcards from slides</button>`:""}</div>`:""}</section>
+          ${slides&&l.pptxPath?`<button class="file-link" data-open="${esc(l.pptxPath)}" style="margin-bottom:8px">${ICON_FILE}<span>${esc(l.pptxName||"PowerPoint")}</span></button><br>`:""}${slides?`<button class="file-link" data-open="${esc(slides.id)}">${ICON_FILE}<span>${esc(slides.name||"Slides")}</span></button>`:l.pptxPath?`<button class="file-link" data-open="${esc(l.pptxPath)}">${ICON_FILE}<span>${esc(l.pptxName||"PowerPoint")}</span></button>`:l.pptxName?`<p class="hint" style="margin:0">PowerPoint “${esc(l.pptxName)}” was read. Upload the PDF version to view the slides here.</p>`:`<p class="empty">No slides yet. Upload the PowerPoint or PDF.</p>`}
+          ${l.hasText?`<div class="row" style="margin-top:10px"><button class="btn sm" data-slidetext="${l.id}">Slide text${l.slideCount?` (${l.slideCount})`:""}</button>${canAdd()?`<button class="btn sm ai" data-genslides="${l.id}" ${aiBusy(l.id)?"disabled":""}>${aiBusy(l.id)?"AI is working…":"Find more flashcards"}</button>`:""}</div>`:""}</section>
       </div></div>`;
 }
 
@@ -588,17 +590,24 @@ function addMenu(){
     <button type="button" data-add="lesson"><b>Lesson + slides</b><span>Upload the PowerPoint or PDF from class</span></button>
     <button type="button" data-add="summary"><b>Summary</b><span>Your notes, a classmate's, or an AI version</span></button>
     <button type="button" data-add="card"><b>Flashcards</b><span>Terms and meanings to learn</span></button>
-    <button type="button" data-add="deadline"><b>Deadline</b><span>Assignment, test or session</span></button></div>`,null);
+    <button type="button" data-add="deadline"><b>Deadline</b><span>Assignment, test or session</span></button>
+    <button type="button" data-add="personal"><b>🔒 Personal task</b><span>Only you see it</span></button></div>`,null);
 }
 function addDeadline(p={}){
-  const list=Object.keys(COURSES).filter(c=>visible(c));
-  openModal("Add deadline",`<div class="field"><label class="cap" for="f-title">What</label><input id="f-title" maxlength="120" placeholder="e.g. Trends paper"></div>
-    <div class="two"><div class="field"><label class="cap" for="f-dc">Course</label><select id="f-dc">${courseOpts(p.course||"pie",list)}</select></div>
-    <div class="field"><label class="cap" for="f-date">Date</label><input id="f-date" type="date" value="${p.date||T}"></div></div>
-    <div class="field"><label class="cap" for="f-kind">Type</label><select id="f-kind">${Object.entries(KIND).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div>`,
-  async f=>{const title=f.querySelector("#f-title").value.trim(),date=f.querySelector("#f-date").value; if(!title)fail("Give the deadline a name."); if(!date)fail("Pick a date.");
-    await DB.collection("deadlines").add({title,date,course:f.querySelector("#f-dc").value,kind:f.querySelector("#f-kind").value,...stamp()});
-    calMonth=new Date(pd(date).getFullYear(),pd(date).getMonth(),1); selDay=date; return "Deadline added";});
+  const list=Object.keys(COURSES).filter(c=>visible(c)&&c!=="me"), priv=!!p.personal;
+  openModal("Add to my agenda",`<div class="seg" role="radiogroup" aria-label="School or personal">
+      <label><input type="radio" name="f-scope" value="school" ${priv?"":"checked"}><span>📚 School</span></label>
+      <label><input type="radio" name="f-scope" value="personal" ${priv?"checked":""}><span>🔒 Personal</span></label></div>
+    <p class="hint" id="f-scopehint" style="margin:0">${priv?"Only you see this. It shows in your own agenda and to-do's.":"Shared with the whole class."}</p>
+    <div class="field"><label class="cap" for="f-title">What</label><input id="f-title" maxlength="120" placeholder="${priv?"e.g. Study chapter 3, dentist, birthday Arne":"e.g. Trends paper"}"></div>
+    <div class="field"><label class="cap" for="f-date">Date</label><input id="f-date" type="date" value="${p.date||T}"></div>
+    <div class="two" id="f-schoolwrap" ${priv?"hidden":""}><div class="field"><label class="cap" for="f-dc">Course</label><select id="f-dc">${courseOpts(p.course||"pie",list)}</select></div>
+    <div class="field"><label class="cap" for="f-kind">Type</label><select id="f-kind">${Object.entries(KIND).filter(([k])=>k!=="personal").map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div></div>`,
+  async f=>{const title=f.querySelector("#f-title").value.trim(),date=f.querySelector("#f-date").value,isPriv=f.querySelector("input[name=f-scope]:checked").value==="personal";
+    if(!title)fail("Give it a name."); if(!date)fail("Pick a date.");
+    if(isPriv){ await q(sb.from("personal_tasks").insert({title,date,course:null})); scheduleReload("personal"); }
+    else await DB.collection("deadlines").add({title,date,course:f.querySelector("#f-dc").value,kind:f.querySelector("#f-kind").value,...stamp()});
+    calMonth=new Date(pd(date).getFullYear(),pd(date).getMonth(),1); selDay=date; return isPriv?"Added to your personal agenda (only you see it)":"Added for the whole class";});
 }
 function addSummary(p={}){
   openModal("Add summary",`${lessonPicker(p.course,p.lesson)}
@@ -806,14 +815,16 @@ function notesTabHTML(l){
   const base=S.slideCache[l.id];
   if(base===undefined||base===null){ if(base===undefined) setTimeout(()=>loadSlideCache(l.id),0); return `<p class="empty">Loading the slides…</p>`; }
   const notes=S.notes.filter(n=>n.lessonId===l.id), master=S.master.filter(m=>m.lessonId===l.id);
-  const head=`<div class="row" style="margin-bottom:12px">${canAdd()?`<button class="btn sm add" data-mynotes="${l.id}">${notes.some(n=>n.userId===S.uid)?"Update my notes":"Add my notes"}</button>`:""}${S.isAdmin&&notes.length?`<button class="btn sm ai" data-mergenotes="${l.id}">Merge notes with AI</button>`:""}<span class="hint">${notes.length} student${notes.length===1?"":"s"} shared notes</span></div>`;
+  const head=`<div class="row" style="margin-bottom:12px">${canAdd()?`<button class="btn sm add" data-mynotes="${l.id}">${notes.some(n=>n.userId===S.uid)?"Update my notes":"Add my PowerPoint with notes"}</button>`:""}${notes.length?`<button class="btn sm ai" data-mergenotes="${l.id}" ${aiBusy(l.id)?"disabled":""}>${aiBusy(l.id)?"AI is working…":"Combine notes again"}</button>`:""}<span class="hint">${notes.length} student${notes.length===1?"":"s"} shared notes</span></div>`;
   if(!base.length&&!notes.length) return head+`<p class="empty">Upload your PowerPoint with your notes under the slides. Everyone's notes then appear here per slide, and they can be merged into one complete set.</p>`;
   const per=notes.map(n=>({who:nameOf(n.userId),me:n.userId===S.uid,map:alignNotes(base,n.slides)}));
+  const files=notes.filter(n=>n.filePath);
+  const filesHTML=files.length?`<div class="dl-row"><span class="hint">Everyone's PowerPoint:</span>${files.map(n=>`<button class="chipbtn" data-open="${esc(n.filePath)}" title="${esc(n.fileName||"PowerPoint")}">⬇ ${esc(nameOf(n.userId))}</button>`).join("")}</div>`:"";
   const nums=[...new Set([...base.map(b=>b.n),...per.flatMap(p=>Object.keys(p.map).map(Number))])].sort((a,b)=>a-b);
-  return head+nums.map(n=>{const b=base.find(x=>x.n===n), m=master.find(x=>x.slide===n), ns=per.filter(p=>p.map[n]);
+  return head+filesHTML+nums.map(n=>{const b=base.find(x=>x.n===n), m=master.find(x=>x.slide===n), ns=per.filter(p=>p.map[n]);
     if(!ns.length&&!m&&!(b&&b.text)) return "";
     return `<article class="slide-card"><div class="q-sub">Slide ${n}</div>${b&&b.text?`<div class="slide-txt">${esc(b.text.slice(0,400))}${b.text.length>400?"…":""}</div>`:""}
-      ${m?`<div class="master-note"><b>Master note</b><div class="sum-body">${md(m.text)}</div></div>`:""}
+      ${m?`<div class="master-note"><b>Optimal note</b><div class="sum-body">${md(m.text)}</div></div>`:""}
       ${ns.length?`<details ${m?"":"open"}><summary class="hint">${ns.length} student note${ns.length===1?"":"s"}</summary>${ns.map(p=>`<div class="st-notes"><b>${esc(p.who)}${p.me?" (you)":""}:</b> <span style="white-space:pre-wrap">${esc(p.map[n].join("\n"))}</span></div>`).join("")}</details>`:""}</article>`;}).join("");
 }
 function addMyNotes(lessonId){
@@ -825,10 +836,10 @@ function addMyNotes(lessonId){
     if(!S.lessons.find(x=>x.id===lessonId)?.hasText) await saveSlideText(lessonId,text,"pptx");
     view.tab="slides"; return `Your notes for ${n} slide${n===1?"":"s"} are shared`;},"Share my notes");
 }
-async function saveMyNotes(lessonId,text){
+async function saveMyNotes(lessonId,text,file){
   const slides=text.filter(s=>s.notes).map(s=>({n:s.n,head:(s.text||"").slice(0,80),notes:s.notes}));
   if(!slides.length) return 0;
-  await q(sb.from("slide_notes").upsert({lesson_id:lessonId,user_id:S.uid,slides,updated_at:new Date().toISOString()},{onConflict:"lesson_id,user_id"}));
+  await q(sb.from("slide_notes").upsert({lesson_id:lessonId,user_id:S.uid,slides,...(file?{file_path:file.path,file_name:file.name}:{}),updated_at:new Date().toISOString()},{onConflict:"lesson_id,user_id"}));
   scheduleReload("slide_notes"); return slides.length;
 }
 function genMergeNotes(lessonId){
@@ -881,7 +892,7 @@ document.addEventListener("click",ev=>{
   if(d.close!==undefined){closeModal();return;}
   if(d.add){ const c=d.c||(view.name==="course"?view.course:view.name==="lesson"?S.lessons.find(l=>l.id===view.lessonId)?.course:undefined);
     if(document.getElementById("modal-root").innerHTML&&d.add!=="menu") closeModal();
-    if(d.add==="menu")addMenu(); else if(d.add==="deadline")addDeadline({course:c,date:d.date}); else if(d.add==="lesson")addLesson(c,d.date);
+    if(d.add==="menu")addMenu(); else if(d.add==="deadline")addDeadline({course:c,date:d.date}); else if(d.add==="personal")addDeadline({personal:true,date:d.date}); else if(d.add==="lesson")addLesson(c,d.date);
     else if(d.add==="slides")addSlides(d.lesson); else if(d.add==="summary")addSummary({course:c,lesson:d.lesson||(view.name==="lesson"?view.lessonId:undefined),kind:d.kind});
     else if(d.add==="card")addCard({course:c,lesson:d.lesson||(view.name==="lesson"?view.lessonId:undefined)}); return; }
   if(d.done){const set=new Set(S.me.done||[]); if(set.has(d.done))set.delete(d.done); else {set.add(d.done);toast("Done. One less thing to worry about.")} saveMe({done:[...set]}); return;}
@@ -933,8 +944,111 @@ document.addEventListener("change",ev=>{
   if(id==="goalsel")saveMe({goal:Number(ev.target.value)});
   if(id==="f-course"&&ev.target.dataset.lp!==undefined){const c=ev.target.value,ls=document.getElementById("f-lesson");ls.innerHTML=lessonOpts(c,null);document.getElementById("f-newwrap").hidden=ls.value!=="__new";}
   if(id==="p-pick"){document.getElementById("p-otherwrap").hidden=ev.target.value!=="__other";}
+  if(ev.target.name==="f-scope"){const pr=ev.target.value==="personal"; document.getElementById("f-schoolwrap").hidden=pr; document.getElementById("f-scopehint").textContent=pr?"Only you see this. It shows in your own agenda and to-do's.":"Shared with the whole class."; document.getElementById("f-title").placeholder=pr?"e.g. Study chapter 3, dentist, birthday Arne":"e.g. Trends paper";}
   if(id==="f-lesson"){document.getElementById("f-newwrap").hidden=ev.target.value!=="__new";}
 });
+
+
+// =====================================================================
+// v3 · one lesson per class + automatic AI (Gemini via the "ai" function)
+// =====================================================================
+const AI_RUNNING={};
+async function callAI(action,lessonId,summaryId){
+  const {data,error}=await sb.functions.invoke("ai",{body:{action,lessonId,summaryId}});
+  if(error){ let msg=error.message; try{ const b=await error.context.json(); if(b&&b.error) msg=b.error; }catch(e){} throw new Error(msg); }
+  if(data&&data.error) throw new Error(data.error);
+  return data||{};
+}
+async function runAI(action,lessonId,summaryId){
+  const key=action+":"+lessonId+":"+(summaryId||""); if(AI_RUNNING[key]) return; AI_RUNNING[key]=true; render();
+  toast(action==="cards"?"AI is making flashcards… (about a minute)":action==="merge"?"AI is combining everyone's notes…":"AI is combining the notes and making flashcards…");
+  try{
+    const r=await callAI(action,lessonId,summaryId);
+    const c=r.cards||r, m=r.merged||(action==="merge"?r:null);
+    const parts=[]; if(m&&m.slides) parts.push(`optimal notes for ${m.slides} slide${m.slides===1?"":"s"}`); if(c&&typeof c.added==="number") parts.push(`${c.added} new flashcard${c.added===1?"":"s"}`);
+    toast(parts.length?"Done: "+parts.join(" + "):"Done. Nothing new to add.");
+    scheduleReload("cards"); scheduleReload("master_notes");
+  }catch(e){ toast("AI: "+(e.message||"something went wrong")); console.warn(e); }
+  delete AI_RUNNING[key]; render();
+}
+const aiBusy=id=>Object.keys(AI_RUNNING).some(k=>k.split(":")[1]===id);
+function genFromSlides(lessonId){ runAI("cards",lessonId); }
+function genCards(sumId){ const s=S.summaries.find(x=>x.id===sumId); if(s) runAI("cards",s.lessonId,sumId); }
+function genMergeNotes(lessonId){ runAI("auto",lessonId); }
+
+// find which existing lesson an uploaded PowerPoint belongs to (same slides)
+const headOf=s=>norm((s.text||"").slice(0,80));
+async function findMatchingLesson(course,slides){
+  const ls=lessonsOf(course); if(!ls.length||!slides.length) return null;
+  const mine=new Set(slides.map(headOf).filter(h=>h.length>3)); if(!mine.size) return null;
+  let rows=[]; try{ rows=await q(sb.from("slide_text").select("lesson_id,slides").in("lesson_id",ls.map(l=>l.id))); }catch(e){ return null; }
+  let best=null;
+  for(const r of rows){ const theirs=new Set((r.slides||[]).map(headOf).filter(h=>h.length>3)); if(!theirs.size) continue;
+    let hit=0; mine.forEach(h=>{ if(theirs.has(h)) hit++; }); const score=hit/Math.min(mine.size,theirs.size);
+    if(score>=0.5&&(!best||score>best.score)) best={id:r.lesson_id,score}; }
+  return best;
+}
+let upl=null;
+function addLesson(course,date,lessonId){
+  const l0=lessonId&&S.lessons.find(x=>x.id===lessonId);
+  const c0=l0?l0.course:(course&&!NOLEARN.includes(course)?course:learnCourses()[0]);
+  upl={slides:[],kind:"",file:null,match:null};
+  openModal(l0?`PowerPoint for “${esc(l0.title)}”`:"Upload a PowerPoint",`
+    <div class="field"><label class="cap" for="u-file">Your PowerPoint (.pptx) or PDF</label><input id="u-file" type="file" accept=".pptx,.pdf,.png,.jpg,.jpeg,.webp"></div>
+    <p class="hint" style="margin:0">Same PowerPoint as your classmates? No problem: it's added to the same lesson, and everyone's notes under the slides are combined into one optimal version.</p>
+    <div id="u-detect" class="hint"></div>
+    <div class="two"><div class="field"><label class="cap" for="u-course">Course</label><select id="u-course" ${l0?"disabled":""}>${courseOpts(c0,learnCourses())}</select></div>
+    <div class="field"><label class="cap" for="u-lesson">Lesson</label><select id="u-lesson" ${l0?"disabled":""}>${lessonOpts(c0,l0?l0.id:null)}</select></div></div>
+    <div class="two" id="u-newwrap" ${!l0&&!lessonsOf(c0).length?"":"hidden"}><div class="field"><label class="cap" for="u-title">New lesson topic</label><input id="u-title" maxlength="120" placeholder="e.g. Market segmentation"></div>
+    <div class="field"><label class="cap" for="u-date">Class date</label><input id="u-date" type="date" value="${date||T}"></div></div>`,
+  async f=>{
+    const btn=document.getElementById("msave"), st=t=>{btn.textContent=t};
+    const course=f.querySelector("#u-course").value; let lessonId=f.querySelector("#u-lesson").value;
+    if(!upl.file&&lessonId!=="__new") fail("Choose your PowerPoint or PDF.");
+    if(lessonId==="__new"){ const title=f.querySelector("#u-title").value.trim(); if(!title) fail("Give the new lesson a topic.");
+      st("Creating the lesson…"); const ref=await DB.collection("lessons").add({course,title,number:nextNum(course),date:f.querySelector("#u-date").value||T,...stamp()}); lessonId=ref.id; }
+    const lesson=S.lessons.find(x=>x.id===lessonId)||{};
+    let asset=null;
+    if(upl.file&&upl.kind!=="pptx"&&!lesson.slides){ st("Uploading…"); asset=await uploadFile(upl.file); }
+    let pptx=null;
+    if(upl.file&&upl.kind==="pptx"){ st("Uploading your PowerPoint…"); pptx=await Files.upload(upl.file,{type:"application/vnd.openxmlformats-officedocument.presentationml.presentation"}); }
+    const patch={}; if(asset) patch.slides=asset; if(pptx&&!lesson.pptxPath){ patch.pptxPath=pptx.id; patch.pptxName=upl.file.name; }
+    if(Object.keys(patch).length) await DB.doc("lessons/"+lessonId).update(patch);
+    let notes=0;
+    if(upl.slides.length){
+      st("Saving…");
+      if(!lesson.hasText){ const shared=upl.slides.map(({notes,...r})=>r); await DB.doc("slidetext/"+lessonId).set({lessonId,source:upl.kind,slides:shared,updatedAt:new Date().toISOString()}); await DB.doc("lessons/"+lessonId).update({slideCount:upl.slides.length,hasText:true}); delete S.slideCache[lessonId]; }
+      notes=await saveMyNotes(lessonId,upl.slides,pptx?{path:pptx.id,name:upl.file.name}:null);
+    }
+    curTab="courses"; view={name:"lesson",lessonId,tab:notes?"slides":"student"}; session=null;
+    if(upl.slides.length) setTimeout(()=>runAI(notes?"auto":"cards",lessonId),0);
+    return notes?`Saved with your notes on ${notes} slide${notes===1?"":"s"}`:"Saved";
+  },"Save");
+  const f=document.getElementById("mform");
+  f.querySelector("#u-file").addEventListener("change",async ev=>{
+    const file=ev.target.files[0], out=document.getElementById("u-detect"); upl={slides:[],kind:"",file:null,match:null}; out.textContent="";
+    if(!file) return;
+    try{ upl.kind=slideKind(file); }catch(e){ out.innerHTML=`<span class="err">${esc(e.userMsg||"Unsupported file")}</span>`; return; }
+    upl.file=file; if(upl.kind==="image") return;
+    out.textContent="Reading the slides…";
+    try{ upl.slides=upl.kind==="pdf"?await pdfSlides(await file.arrayBuffer()):await pptxSlides(await file.arrayBuffer()); }catch(e){ upl.slides=[]; }
+    const nNotes=upl.slides.filter(s=>s.notes).length;
+    out.innerHTML=upl.slides.length?`${upl.slides.length} slides read${upl.kind==="pptx"?`, your notes on ${nNotes} slide${nNotes===1?"":"s"}`:""}.`:`<span class="err">No text found in this file.</span>`;
+    if(l0) return;
+    await detect(f);
+  });
+  f.querySelector("#u-course").addEventListener("change",()=>{ const c=f.querySelector("#u-course").value; f.querySelector("#u-lesson").innerHTML=lessonOpts(c,null); f.querySelector("#u-newwrap").hidden=f.querySelector("#u-lesson").value!=="__new"; detect(f); });
+  f.querySelector("#u-lesson").addEventListener("change",ev=>{ f.querySelector("#u-newwrap").hidden=ev.target.value!=="__new"; });
+}
+async function detect(f){
+  const c=f.querySelector("#u-course").value, out=document.getElementById("u-detect"); if(!upl.slides.length) return;
+  const m=await findMatchingLesson(c,upl.slides);
+  if(m){ const l=S.lessons.find(x=>x.id===m.id); f.querySelector("#u-lesson").value=m.id; f.querySelector("#u-newwrap").hidden=true;
+    out.innerHTML+=` <b style="color:var(--ok)">✓ This PowerPoint is already in lesson ${l?l.number+". "+esc(l.title):""}. Your notes will be added to it.</b>`; }
+  else if(!f.querySelector("#u-title").value){ const first=(upl.slides.find(s=>s.text)||{}).text||""; f.querySelector("#u-title").value=first.split("\n")[0].slice(0,80); }
+}
+function addSlides(lessonId){ addLesson(null,null,lessonId); }
+function addMyNotes(lessonId){ addLesson(null,null,lessonId); }
 
 // ---------- login (pick your name + your own password; no email needed)
 const slugName=n=>String(n).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");
@@ -1000,8 +1114,10 @@ function openProfile(){
     <div class="two"><div class="field"><label class="cap" for="p-fr">French group</label><select id="p-fr"><option value="basic" ${S.me.fr==="basic"?"selected":""}>Basic · Katrien Ermens</option><option value="advanced" ${S.me.fr==="advanced"?"selected":""}>Advanced · Poitiers</option></select></div>
     <div class="field"><label class="cap" for="p-third">3rd language</label><select id="p-third"><option value="es" ${S.me.third==="es"?"selected":""}>Spanish</option><option value="de" ${S.me.third==="de"?"selected":""}>German</option></select></div></div>
     <label class="row hint"><input type="checkbox" id="p-hide" ${S.me.hideBoard?"checked":""} style="width:auto"> Hide my score on the class leaderboard</label>
+    <details><summary class="hint">Change my password</summary><div class="field" style="margin-top:6px"><input id="p-pw" type="password" autocomplete="new-password" placeholder="New password (min. 6 characters)"></div></details>
     <button type="button" class="btn" data-logout style="justify-self:start">Log out</button>`,
-  async f=>{saveMe({fr:f.querySelector("#p-fr").value,third:f.querySelector("#p-third").value,hideBoard:f.querySelector("#p-hide").checked}); return "Profile saved";},"Save");
+  async f=>{const pw=f.querySelector("#p-pw").value; if(pw){ if(pw.length<6) fail("Use at least 6 characters for your password."); const {error}=await sb.auth.updateUser({password:pw}); if(error) fail(error.message); }
+    saveMe({fr:f.querySelector("#p-fr").value,third:f.querySelector("#p-third").value,hideBoard:f.querySelector("#p-hide").checked}); return "Profile saved";},"Save");
 }
 // wrap render: logged-out screen + hide app chrome
 const _renderApp=render;
